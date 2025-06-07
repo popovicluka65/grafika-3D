@@ -1,0 +1,3 @@
+C:\Users\NITRO\Desktop\v9\x64\Debug\glew32.dll
+C:\Users\NITRO\Desktop\gr\v9\x64\Debug\glew32.dll
+C:\Users\NITRO\Desktop\grafika-3D\x64\Debug\glew32.dll
