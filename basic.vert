@@ -1,16 +1,15 @@
 #version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec4 aColor; // Može da se koristi za default boju, ali æemo je premostiti uniformom
 
-layout(location = 0) in vec3 inPos;
-layout(location = 1) in vec4 inCol;
+out vec4 vertColor;
 
-uniform mat4 uM; //Matrica transformacije
-uniform mat4 uV; //Matrica kamere
-uniform mat4 uP; //Matrica projekcija
-
-out vec4 channelCol;
+uniform mat4 uM; // Model matrica
+uniform mat4 uV; // View matrica
+uniform mat4 uP; // Projection matrica
 
 void main()
 {
-	gl_Position = uP * uV * uM * vec4(inPos, 1.0); //Zbog nekomutativnosti mnozenja matrica, moramo mnoziti MVP matrice i tjemena "unazad"
-	channelCol = inCol;
+    gl_Position = uP * uV * uM * vec4(aPos, 1.0);
+    vertColor = aColor; // Prosleðujemo boju dalje, iako je neæemo koristiti direktno za objectColor
 }

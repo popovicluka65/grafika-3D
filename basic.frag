@@ -1,9 +1,10 @@
 #version 330 core
+out vec4 FragColor;
 
-in vec4 channelCol;
-out vec4 outCol;
+in vec4 vertColor; // Boja koja dolazi iz Vertex Shader-a
+uniform vec4 objectColor; // Uniformna promenljiva za boju objekta
 
 void main()
 {
-	outCol = channelCol;
+    FragColor = objectColor; // Koristimo boju poslatu putem uniforme
 }
