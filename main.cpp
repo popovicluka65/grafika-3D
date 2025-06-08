@@ -32,6 +32,9 @@ const float VEHICLE_MAX_SPEED = 5.0f;
 const float VEHICLE_MIN_SPEED = 0.1f;
 const float BRIDGE_LENGTH = 16.0f; 
 
+float vehicleAcceleration = 2.0f; 
+float vehicleBraking = 4.0f;       
+
 // 3 za poziciju, 4 za boje
 float cubeVertices[] = {    
     //X    Y    Z       R    G    B    A
@@ -92,7 +95,6 @@ float planeVertices[] = {
      0.5f, 0.0f,  0.5f,    0.0f, 0.0f, 0.8f, 1.0f, // Donji desni (reka)
      0.5f, 0.0f, -0.5f,    0.0f, 0.0f, 0.8f, 1.0f, // Gornji desni (reka)
 
-     
      -0.5f, 0.0f,  0.5f,    0.0f, 0.0f, 0.8f, 1.0f, // Donji levi (reka)
       0.5f, 0.0f, -0.5f,    0.0f, 0.0f, 0.8f, 1.0f, // Gornji desni (reka)
      -0.5f, 0.0f, -0.5f,    0.0f, 0.0f, 0.8f, 1.0f  // Gornji levi (reka)
@@ -210,8 +212,6 @@ int main(void)
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
         lastFrameTime = currentFrameTime;
-
-
      
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -221,12 +221,16 @@ int main(void)
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         {
-         //dodati  
+            vehicleSpeed += vehicleAcceleration * (float)deltaTime;
         }
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
         {
-            //dodati  
+            vehicleSpeed -= vehicleBraking * (float)deltaTime;
         }
+
+        if (vehicleSpeed > VEHICLE_MAX_SPEED) vehicleSpeed = VEHICLE_MAX_SPEED;
+        if (vehicleSpeed < VEHICLE_MIN_SPEED) vehicleSpeed = VEHICLE_MIN_SPEED;
+
 
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         {
@@ -256,7 +260,6 @@ int main(void)
         }
        
 
-
         float pillarHeight = 1.2f;
         float pillarWidthDepth = 0.8f;
         float numPillars = 4;
@@ -279,9 +282,6 @@ int main(void)
 
         glBindVertexArray(planeVAO); //crtanje reke
 
-
-        
-        
         glm::mat4 riverModel = glm::mat4(1.0f);
         //riverModel = glm::scale(riverModel, glm::vec3(BRIDGE_LENGTH + 4.0f, 1.0f, 10.0f)); 
         //prepravio sam da ipak budu iste dimenzije
@@ -290,24 +290,19 @@ int main(void)
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(riverModel));
         glDrawArrays(GL_TRIANGLES, 0, planeVertexCount);
 
-       
         glBindVertexArray(cubeVAO);  // crtanje mostova
         glUniform4f(objectColorLoc, 0.6f, 0.6f, 0.6f, 1.0f); 
-
-        
 
         for (int i = 0; i < numPillars; ++i)
         {
             float xPos = -BRIDGE_LENGTH / 2.0f + (BRIDGE_LENGTH / (numPillars - 1)) * i;
 
-            
             glm::mat4 pillarModelLeft = glm::mat4(1.0f); // Levi stub
             pillarModelLeft = glm::translate(pillarModelLeft, glm::vec3(xPos, -0.7f + pillarHeight / 2.0f, bridgeZOffset));
             pillarModelLeft = glm::scale(pillarModelLeft, glm::vec3(pillarWidthDepth, pillarHeight, pillarWidthDepth));
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(pillarModelLeft));
             glDrawArrays(GL_TRIANGLES, 0, cubeVertexCount);
 
-            
             glm::mat4 pillarModelRight = glm::mat4(1.0f);// Desni stub
             pillarModelRight = glm::translate(pillarModelRight, glm::vec3(xPos, -0.7f + pillarHeight / 2.0f, -bridgeZOffset));
             pillarModelRight = glm::scale(pillarModelRight, glm::vec3(pillarWidthDepth, pillarHeight, pillarWidthDepth));
@@ -325,7 +320,6 @@ int main(void)
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(deckModel));
         glDrawArrays(GL_TRIANGLES, 0, planeVertexCount);
 
-    
         glBindVertexArray(cubeVAO); //isti Vao kao i za stubove (kocke)
         float vehicleHeight = 0.5f;
         float vehicleWidth = 0.8f;
@@ -355,7 +349,6 @@ int main(void)
 
         glfwSwapBuffers(window); 
         glfwPollEvents();    
-
 
         auto fpsEndTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = fpsEndTime - fpsStartTime;
