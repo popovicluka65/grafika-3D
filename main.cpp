@@ -30,8 +30,7 @@ glm::vec3 vehiclePositions[3] = {
 float vehicleSpeed = 1.0f; 
 const float VEHICLE_MAX_SPEED = 5.0f;
 const float VEHICLE_MIN_SPEED = 0.1f;
-const float BRIDGE_LENGTH = 12.0f; 
-
+const float BRIDGE_LENGTH = 16.0f; 
 
 // 3 za poziciju, 4 za boje
 float cubeVertices[] = {    
@@ -198,11 +197,22 @@ int main(void)
 
     double lastFrameTime = glfwGetTime();
 
+    //samo za rotaciju na A i D, ako treba obrisati cisto za vezbanje i testiranje sam dodao
+
+    float cameraRotationSpeed = 10.0f; 
+    float cameraMoveSpeed = 2.0f;    
+    glm::mat4 rotationMatrix(1.0f); 
+
+
     while (!glfwWindowShouldClose(window))
     {
+        auto fpsStartTime = std::chrono::high_resolution_clock::now();
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
         lastFrameTime = currentFrameTime;
+
+
+     
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         {
@@ -218,12 +228,46 @@ int main(void)
             //dodati  
         }
 
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        {
+            rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(cameraRotationSpeed * (float)deltaTime), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::vec4 rotatedCameraPos = rotationMatrix * glm::vec4(cameraPos - cameraTarget, 1.0f);
+            cameraPos = glm::vec3(rotatedCameraPos) + cameraTarget;
+        }
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        {
+            rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(-cameraRotationSpeed * (float)deltaTime), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::vec4 rotatedCameraPos = rotationMatrix * glm::vec4(cameraPos - cameraTarget, 1.0f);
+            cameraPos = glm::vec3(rotatedCameraPos) + cameraTarget;
+        }
+
+        glm::vec3 cameraDirection = glm::normalize(cameraTarget - cameraPos);
+        glm::vec3 cameraRight = glm::normalize(glm::cross(cameraDirection, cameraUp));
+
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+        {
+            cameraPos -= cameraRight * cameraMoveSpeed * (float)deltaTime;
+            cameraTarget -= cameraRight * cameraMoveSpeed * (float)deltaTime; 
+        }
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+        {
+            cameraPos += cameraRight * cameraMoveSpeed * (float)deltaTime;
+            cameraTarget += cameraRight * cameraMoveSpeed * (float)deltaTime;
+        }
+       
+
+
+        float pillarHeight = 1.2f;
+        float pillarWidthDepth = 0.8f;
+        float numPillars = 4;
+        float bridgeZOffset = 1.5f;
+
         for (int i = 0; i < 3; ++i)
         {
             vehiclePositions[i].x += vehicleSpeed * deltaTime;
-            // Ako vozilo preðe kraj mosta, vrati ga na poèetak (-1.0f je dodatna margina za glatkiji prelaz)
-            if (vehiclePositions[i].x > BRIDGE_LENGTH / 2.0f + 1.0f)
-                vehiclePositions[i].x = -BRIDGE_LENGTH / 2.0f - 1.0f;
+            // Ako vozilo preðe kraj mosta, vrati ga na poèetak 
+            if (vehiclePositions[i].x > (BRIDGE_LENGTH - pillarWidthDepth) / 2.0f )
+                vehiclePositions[i].x = ( - BRIDGE_LENGTH + pillarWidthDepth )/ 2.0f;
             
         }
 
@@ -234,9 +278,14 @@ int main(void)
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 
         glBindVertexArray(planeVAO); //crtanje reke
+
+
+        
         
         glm::mat4 riverModel = glm::mat4(1.0f);
-        riverModel = glm::scale(riverModel, glm::vec3(BRIDGE_LENGTH + 4.0f, 1.0f, 10.0f)); 
+        //riverModel = glm::scale(riverModel, glm::vec3(BRIDGE_LENGTH + 4.0f, 1.0f, 10.0f)); 
+        //prepravio sam da ipak budu iste dimenzije
+        riverModel = glm::scale(riverModel, glm::vec3(BRIDGE_LENGTH + pillarWidthDepth, 1.0f, 10.0f));
         riverModel = glm::translate(riverModel, glm::vec3(0.0f, -0.7f, 0.0f)); 
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(riverModel));
         glDrawArrays(GL_TRIANGLES, 0, planeVertexCount);
@@ -245,10 +294,7 @@ int main(void)
         glBindVertexArray(cubeVAO);  // crtanje mostova
         glUniform4f(objectColorLoc, 0.6f, 0.6f, 0.6f, 1.0f); 
 
-        float pillarHeight = 1.2f;
-        float pillarWidthDepth = 0.8f;
-        float numPillars = 4; 
-        float bridgeZOffset = 1.5f; 
+        
 
         for (int i = 0; i < numPillars; ++i)
         {
@@ -308,7 +354,16 @@ int main(void)
         }
 
         glfwSwapBuffers(window); 
-        glfwPollEvents();       
+        glfwPollEvents();    
+
+
+        auto fpsEndTime = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = fpsEndTime - fpsStartTime;
+
+        double sleepTime = FRAME_TIME - elapsed.count();
+        if (sleepTime > 0) {
+            std::this_thread::sleep_for(std::chrono::duration<double>(sleepTime));
+        }
     }
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++ POSPREMANJE +++++++++++++++++++++++++++++++++++++++++++++++++
