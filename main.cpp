@@ -1,4 +1,4 @@
-// Autor: Nedeljko Tesanovic
+ï»¿// Autor: Nedeljko Tesanovic
 // Opis: Testiranje dubine, Uklanjanje lica, Transformacije, Prostori i Projekcije
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -15,10 +15,15 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 const int TARGET_FPS = 60;
 const double FRAME_TIME = 1.0 / TARGET_FPS;
 unsigned int compileShader(GLenum type, const char* source);
 unsigned int createShader(const char* vsSource, const char* fsSource);
+static unsigned loadImageToTexture(const char* filePath);
+
 
 // Videti prepraviti da se random stvaraju vozila na traci, da ne bude fiksno al za test neka ovako
 glm::vec3 vehiclePositions[3] = {
@@ -35,7 +40,6 @@ const float BRIDGE_LENGTH = 16.0f;
 float vehicleAcceleration = 2.0f; 
 float vehicleBraking = 4.0f;       
 
-// 3 za poziciju, 4 za boje
 float cubeVertices[] = {    
     //X    Y    Z       R    G    B    A
     // Prednja strana
@@ -86,7 +90,7 @@ float cubeVertices[] = {
       -0.5f, -0.5f, -0.5f,    0.8f, 0.8f, 0.8f, 1.0f,
        0.5f, -0.5f, -0.5f,    0.8f, 0.8f, 0.8f, 1.0f
 };
-unsigned int cubeVertexCount = 36; //posle prebaciti da se uzme duzina od cubeVertices mrzi me sad
+unsigned int cubeVertexCount = 36;
 unsigned int cubeStride = (3 + 4) * sizeof(float); // 3 poz, 4 rgba
 
 float planeVertices[] = {
@@ -101,6 +105,22 @@ float planeVertices[] = {
 };
 unsigned int planeVertexCount = 6; //isto ko i za cube
 unsigned int planeStride = (3 + 4) * sizeof(float); 
+
+
+//za 2D teksturu, uzeo od 2D projekta
+float vertices[] = {
+    -1.0f, -1.0f,     0.0f, 0.0f,
+     1.0f, -1.0f,     1.0f, 0.0f,
+     1.0f,  1.0f,     1.0f, 1.0f, 
+    -1.0f,  1.0f,     0.0f, 1.0f 
+};
+
+unsigned int indices[] = {
+    0, 1, 2, 
+    0, 2, 3
+};
+
+unsigned int textureStride = (2 + 2) * sizeof(float);
 
 
 int main(void)
@@ -136,18 +156,16 @@ int main(void)
         return 3;
     }
 
-    // Omoguæavanje Depth Testing-a za pravilno renderovanje 3D objekata (koji objekat je bliži)
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS); // Fragment je bliži ako ima manju dubinu
+    glDepthFunc(GL_LESS); // Fragment je bliÅ¾i ako ima manju dubinu
 
-    // Omoguæavanje Face Culling-a za optimizaciju (ne crtamo unutrašnje strane objekata)
+ 
     glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK); // Eliminiše zadnje strane
-    glFrontFace(GL_CCW); // Prednje strane su one koje se vide u smeru suprotnom kazaljke na satu (Counter-Clockwise)
+    glCullFace(GL_BACK); // EliminiÅ¡e zadnje strane
+    glFrontFace(GL_CCW); 
 
-    // ++++++++++++++++++++++++++++++++++++++++++++++++++++++ PROMJENLJIVE I BAFERI +++++++++++++++++++++++++++++++++++++++++++++++++    // Kreiranje i aktiviranje shader programa
+    // ++++++++++++++++++++++++++++++++++++++++++++++++++++++ PROMJENLJIVE I BAFERI +++++++++++++++++++++++++++++++++++++++++++++++++
     unsigned int unifiedShader = createShader("basic.vert", "basic.frag");
-    glUseProgram(unifiedShader);
 
     unsigned int modelLoc = glGetUniformLocation(unifiedShader, "uM");
     unsigned int viewLoc = glGetUniformLocation(unifiedShader, "uV");
@@ -185,21 +203,69 @@ int main(void)
     glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0); 
-    glBindVertexArray(0);             
+    glBindVertexArray(0);      
+
+    //uzeto sa 2D projekta za teksturu
+    unsigned int textureVAO;
+    glGenVertexArrays(1, &textureVAO);
+    glBindVertexArray(textureVAO);
+    unsigned int textureVBO;
+    glGenBuffers(1, &textureVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, textureVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // da bude cetvorougao moramo spojiti 2 trougla
+    unsigned int textureEBO;
+    glGenBuffers(1, &textureEBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, textureEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, textureStride, (void*)0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, textureStride, (void*)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+
+    unsigned int textureShader = createShader("texture.vert", "texture.frag");
+
+    unsigned checkerTexture = loadImageToTexture("index.png");
+    if (checkerTexture == 0) {
+        std::cout << "Failed to load texture!" << std::endl;
+        return -1;
+    }
+    glBindTexture(GL_TEXTURE_2D, checkerTexture); //Podesavamo teksturu
+    glGenerateMipmap(GL_TEXTURE_2D); //Generisemo mipmape 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);//S = U = X    GL_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);// T = V = Y
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);   //GL_NEAREST, GL_LINEAR
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    //glDisable(GL_DEPTH_TEST);
+
+    glUseProgram(textureShader);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, checkerTexture);
+    glUniform1i(glGetUniformLocation(textureShader, "uTex"), 0); 
+
+
+    glBindVertexArray(textureVAO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+  
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++ PARAMETRI KAMERE +++++++++++++++++++++++++++++++++++++++++++++++++
-    glm::vec3 cameraPos = glm::vec3(0.0f, 10.0f, 5.0f);   // Pozicija kamere (iznad i malo iza mosta)
+    glm::vec3 cameraPos = glm::vec3(0.0f, 10.0f, 5.0f);  
     glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f); // Gleda u centar mosta
-    glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);     // Gornji smer kamere
+    glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);   
 
     glm::mat4 projectionMatrix = glm::perspective(glm::radians(60.0f), (float)wWidth / (float)wHeight, 0.1f, 100.0f);
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++ RENDER LOOP - PETLJA ZA CRTANJE +++++++++++++++++++++++++++++++++++++++++++++++++
-    glClearColor(0.5f, 0.5f, 0.7f, 1.0f);
 
     double lastFrameTime = glfwGetTime();
-
-    //samo za rotaciju na A i D, ako treba obrisati cisto za vezbanje i testiranje sam dodao
 
     float cameraRotationSpeed = 10.0f; 
     float cameraMoveSpeed = 2.0f;    
@@ -208,6 +274,7 @@ int main(void)
 
     while (!glfwWindowShouldClose(window))
     {
+
         auto fpsStartTime = std::chrono::high_resolution_clock::now();
         double currentFrameTime = glfwGetTime();
         double deltaTime = currentFrameTime - lastFrameTime;
@@ -258,7 +325,6 @@ int main(void)
             cameraPos += cameraRight * cameraMoveSpeed * (float)deltaTime;
             cameraTarget += cameraRight * cameraMoveSpeed * (float)deltaTime;
         }
-       
 
         float pillarHeight = 1.2f;
         float pillarWidthDepth = 0.8f;
@@ -268,13 +334,25 @@ int main(void)
         for (int i = 0; i < 3; ++i)
         {
             vehiclePositions[i].x += vehicleSpeed * deltaTime;
-            // Ako vozilo preðe kraj mosta, vrati ga na poèetak 
+            // Ako vozilo preÄ‘e kraj mosta, vrati ga na poÄetak 
             if (vehiclePositions[i].x > (BRIDGE_LENGTH - pillarWidthDepth) / 2.0f )
                 vehiclePositions[i].x = ( - BRIDGE_LENGTH + pillarWidthDepth )/ 2.0f;
-            
         }
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Briše bafer boja ili bafer dubine
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
+
+        glDisable(GL_DEPTH_TEST);
+        glUseProgram(textureShader);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, checkerTexture);
+        glUniform1i(glGetUniformLocation(textureShader, "uTex"), 0);
+
+        glBindVertexArray(textureVAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        glEnable(GL_DEPTH_TEST);
+        glUseProgram(unifiedShader);
 
         glm::mat4 viewMatrix = glm::lookAt(cameraPos, cameraTarget, cameraUp);
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewMatrix));
@@ -283,8 +361,6 @@ int main(void)
         glBindVertexArray(planeVAO); //crtanje reke
 
         glm::mat4 riverModel = glm::mat4(1.0f);
-        //riverModel = glm::scale(riverModel, glm::vec3(BRIDGE_LENGTH + 4.0f, 1.0f, 10.0f)); 
-        //prepravio sam da ipak budu iste dimenzije
         riverModel = glm::scale(riverModel, glm::vec3(BRIDGE_LENGTH + pillarWidthDepth, 1.0f, 10.0f));
         riverModel = glm::translate(riverModel, glm::vec3(0.0f, -0.7f, 0.0f)); 
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(riverModel));
@@ -310,13 +386,12 @@ int main(void)
             glDrawArrays(GL_TRIANGLES, 0, cubeVertexCount);
         }
 
-        // --- Crtanje Površine Mosta ---
         glBindVertexArray(planeVAO); // crtanje mosta
         glUniform4f(objectColorLoc, 0.1f, 0.1f, 0.1f, 1.0f); // crna za most
 
         glm::mat4 deckModel = glm::mat4(1.0f);
-        deckModel = glm::translate(deckModel, glm::vec3(0.0f, -0.7f + pillarHeight, 0.0f)); // Postavlja se na vrh stubova
-        deckModel = glm::scale(deckModel, glm::vec3(BRIDGE_LENGTH, 0.2f, bridgeZOffset * 2.0f + 0.2f)); // Skalira se da bude dugaèka, tanka i široka
+        deckModel = glm::translate(deckModel, glm::vec3(0.0f, -0.7f + pillarHeight, 0.0f)); 
+        deckModel = glm::scale(deckModel, glm::vec3(BRIDGE_LENGTH, 0.2f, bridgeZOffset * 2.0f + 0.2f));
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(deckModel));
         glDrawArrays(GL_TRIANGLES, 0, planeVertexCount);
 
@@ -341,14 +416,11 @@ int main(void)
                 -0.7f + pillarHeight + (vehicleHeight / 2.0f) + 0.05f,
                 vehiclePositions[i].z
             ));
-            // Scale: Dubina, visina, širina vozila
+            // Scale: Dubina, visina, Å¡irina vozila
             vehicleModelMatrix = glm::scale(vehicleModelMatrix, glm::vec3(vehicleDepth, vehicleHeight, vehicleWidth));
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(vehicleModelMatrix));
             glDrawArrays(GL_TRIANGLES, 0, cubeVertexCount);
         }
-
-        glfwSwapBuffers(window); 
-        glfwPollEvents();    
 
         auto fpsEndTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = fpsEndTime - fpsStartTime;
@@ -357,6 +429,9 @@ int main(void)
         if (sleepTime > 0) {
             std::this_thread::sleep_for(std::chrono::duration<double>(sleepTime));
         }
+
+        glfwSwapBuffers(window); 
+        glfwPollEvents();    
     }
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++ POSPREMANJE +++++++++++++++++++++++++++++++++++++++++++++++++
@@ -365,6 +440,10 @@ int main(void)
     glDeleteBuffers(1, &planeVBO);
     glDeleteVertexArrays(1, &planeVAO);
     glDeleteProgram(unifiedShader);
+
+    glDeleteBuffers(1, &textureVBO);
+    glDeleteVertexArrays(1, &textureVAO);
+    glDeleteProgram(textureShader);
 
     glfwTerminate();
     return 0;
@@ -442,4 +521,38 @@ unsigned int createShader(const char* vsSource, const char* fsSource)
     glDeleteShader(fragmentShader);
 
     return program;
+}
+
+static unsigned loadImageToTexture(const char* filePath) {
+    int TextureWidth;
+    int TextureHeight;
+    int TextureChannels;
+    unsigned char* ImageData = stbi_load(filePath, &TextureWidth, &TextureHeight, &TextureChannels, 0);
+    if (ImageData != NULL)
+    {
+        stbi__vertical_flip(ImageData, TextureWidth, TextureHeight, TextureChannels);
+
+        GLint InternalFormat = -1;
+        switch (TextureChannels) {
+        case 1: InternalFormat = GL_RED; break;
+        case 2: InternalFormat = GL_RG; break;
+        case 3: InternalFormat = GL_RGB; break;
+        case 4: InternalFormat = GL_RGBA; break;
+        default: InternalFormat = GL_RGB; break;
+        }
+
+        unsigned int Texture;
+        glGenTextures(1, &Texture);
+        glBindTexture(GL_TEXTURE_2D, Texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, InternalFormat, TextureWidth, TextureHeight, 0, InternalFormat, GL_UNSIGNED_BYTE, ImageData);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        stbi_image_free(ImageData);
+        return Texture;
+    }
+    else
+    {
+        std::cout << "Textura nije ucitana! Putanja texture: " << filePath << std::endl;
+        stbi_image_free(ImageData);
+        return 0;
+    }
 }
