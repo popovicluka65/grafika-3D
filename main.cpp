@@ -390,7 +390,9 @@ int main(void)
         glUniform4f(objectColorLoc, 0.1f, 0.1f, 0.1f, 1.0f); // crna za most
 
         glm::mat4 deckModel = glm::mat4(1.0f);
-        deckModel = glm::translate(deckModel, glm::vec3(0.0f, -0.7f + pillarHeight, 0.0f)); 
+        //deckModel = glm::translate(deckModel, glm::vec3(0.0f, -0.7f + pillarHeight, 0.0f)); 
+        //PREPRAVLJENA LINIJA ZA Z FIGHTING
+        deckModel = glm::translate(deckModel, glm::vec3(0.0f, -0.7f + pillarHeight - 0.005f, 0.0f));
         deckModel = glm::scale(deckModel, glm::vec3(BRIDGE_LENGTH, 0.2f, bridgeZOffset * 2.0f + 0.2f));
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(deckModel));
         glDrawArrays(GL_TRIANGLES, 0, planeVertexCount);
