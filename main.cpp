@@ -15,6 +15,9 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <random> 
+#include <algorithm> 
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -24,18 +27,19 @@ unsigned int compileShader(GLenum type, const char* source);
 unsigned int createShader(const char* vsSource, const char* fsSource);
 static unsigned loadImageToTexture(const char* filePath);
 
-
-// Videti prepraviti da se random stvaraju vozila na traci, da ne bude fiksno al za test neka ovako
-glm::vec3 vehiclePositions[3] = {
-    glm::vec3(-4.0f, 0.0f, 0.5f),  
-    glm::vec3(-2.0f, 0.0f, -0.5f), 
-    glm::vec3(0.0f, 0.0f, 0.0f)   
-};
-
 float vehicleSpeed = 1.0f; 
 const float VEHICLE_MAX_SPEED = 5.0f;
 const float VEHICLE_MIN_SPEED = 0.1f;
 const float BRIDGE_LENGTH = 16.0f; 
+
+const float VEHICLE_DEPTH = 1.0f; 
+const float VEHICLE_HEIGHT = 0.5f;
+const float VEHICLE_WIDTH = 0.8f;
+
+const float MIN_SPACING_UNIT = VEHICLE_DEPTH + 1.0f;
+
+glm::vec3 vehiclePositions[3];
+float vehicleTargetZPositions[3] = { 0.5f, -0.5f, 0.0f };
 
 float vehicleAcceleration = 2.0f; 
 float vehicleBraking = 4.0f;       
@@ -121,7 +125,16 @@ unsigned int indices[] = {
 };
 
 unsigned int textureStride = (2 + 2) * sizeof(float);
+std::mt19937 randomEngine;
+std::uniform_real_distribution<float> positionDist;
+std::uniform_real_distribution<float> randomOffsetDist;
 
+// Videti prepraviti da se random stvaraju vozila na traci, da ne bude fiksno al za test neka ovako
+//glm::vec3 vehiclePositions[3] = {
+//    glm::vec3(-4.0f, 0.0f, 0.5f),  
+//    glm::vec3(-2.0f, 0.0f, -0.5f), 
+//    glm::vec3(0.0f, 0.0f, 0.0f)   
+//};
 
 int main(void)
 {
@@ -163,6 +176,29 @@ int main(void)
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK); // Eliminiše zadnje strane
     glFrontFace(GL_CCW); 
+
+    std::random_device rd;
+    randomEngine.seed(rd());
+
+
+    float bridgeStartX = -BRIDGE_LENGTH / 2.0f;
+    float bridgeEndX = BRIDGE_LENGTH / 2.0f;
+
+    randomOffsetDist = std::uniform_real_distribution<float>(0.0f, MIN_SPACING_UNIT);
+
+
+    float initialVehicleX = bridgeEndX - (VEHICLE_DEPTH / 2.0f); 
+
+    for (int i = 0; i < 3; ++i) {
+
+        vehiclePositions[i].x = initialVehicleX - (float)i * MIN_SPACING_UNIT - randomOffsetDist(randomEngine);
+        vehiclePositions[i].y = 0.0f;
+        vehiclePositions[i].z = vehicleTargetZPositions[i];
+
+        if (vehiclePositions[i].x < bridgeStartX - (VEHICLE_DEPTH / 2.0f)) 
+            vehiclePositions[i].x = bridgeStartX + (VEHICLE_DEPTH / 2.0f) + randomOffsetDist(randomEngine);
+        
+    }
 
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++ PROMJENLJIVE I BAFERI +++++++++++++++++++++++++++++++++++++++++++++++++
     unsigned int unifiedShader = createShader("basic.vert", "basic.frag");
@@ -398,31 +434,30 @@ int main(void)
         glDrawArrays(GL_TRIANGLES, 0, planeVertexCount);
 
         glBindVertexArray(cubeVAO); //isti Vao kao i za stubove (kocke)
-        float vehicleHeight = 0.5f;
-        float vehicleWidth = 0.8f;
-        float vehicleDepth = 1.0f;
 
         float vehicleColors[3][4] = {
             {1.0f, 0.0f, 0.0f, 1.0f}, // Crveno vozilo
             {0.0f, 1.0f, 0.0f, 1.0f}, // Zeleno vozilo
-            {0.0f, 0.0f, 1.0f, 1.0f}  // Plavo vozilo
+            {1.0f, 1.0f, 0.0f, 1.0f}  // Zuto vozilo
         };
 
         for (int i = 0; i < 3; ++i)
         {
             glUniform4f(objectColorLoc, vehicleColors[i][0], vehicleColors[i][1], vehicleColors[i][2], vehicleColors[i][3]);
-
+            
             glm::mat4 vehicleModelMatrix = glm::mat4(1.0f);
             vehicleModelMatrix = glm::translate(vehicleModelMatrix, glm::vec3(
                 vehiclePositions[i].x,
-                -0.7f + pillarHeight + (vehicleHeight / 2.0f) + 0.05f,
+                -0.7f + pillarHeight + (VEHICLE_HEIGHT / 2.0f) + 0.05f,
                 vehiclePositions[i].z
             ));
             // Scale: Dubina, visina, širina vozila
-            vehicleModelMatrix = glm::scale(vehicleModelMatrix, glm::vec3(vehicleDepth, vehicleHeight, vehicleWidth));
+            vehicleModelMatrix = glm::scale(vehicleModelMatrix, glm::vec3(VEHICLE_DEPTH, VEHICLE_HEIGHT, VEHICLE_WIDTH));
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(vehicleModelMatrix));
             glDrawArrays(GL_TRIANGLES, 0, cubeVertexCount);
         }
+
+        glUniform4f(objectColorLoc, 0.0f, 0.0f, 1.0f, 1.0f);
 
         auto fpsEndTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = fpsEndTime - fpsStartTime;
